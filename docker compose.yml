@@ -1,0 +1,153 @@
+version: '3.8'
+
+services:
+  # Database services
+  mongodb:
+    image: mongo:latest
+    container_name: ecommerce_mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: ecommerce_sqlserver
+    ports:
+      - "1433:1433"
+    environment:
+      SA_PASSWORD: "StrongPassword123!"
+      ACCEPT_EULA: "Y"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+
+  redis:
+    image: redis:latest
+    container_name: ecommerce_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: ecommerce_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  # Microservices
+  catalogservice:
+    build:
+      context: .
+      dockerfile: Dockerfiles/CatalogService.Dockerfile
+    container_name: ecommerce_catalogservice
+    ports:
+      - "5001:5001"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Container
+      - ASPNETCORE_URLS=http://+:5001
+    depends_on:
+      - mongodb
+    restart: on-failure
+
+  userservice:
+    build:
+      context: .
+      dockerfile: Dockerfiles/UserService.Dockerfile
+    container_name: ecommerce_userservice
+    ports:
+      - "5002:5002"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Container
+      - ASPNETCORE_URLS=http://+:5002
+    depends_on:
+      - sqlserver
+    restart: on-failure
+
+  orderservice:
+    build:
+      context: .
+      dockerfile: Dockerfiles/OrderService.Dockerfile
+    container_name: ecommerce_orderservice
+    ports:
+      - "5003:5003"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Container
+      - ASPNETCORE_URLS=http://+:5003
+    depends_on:
+      - sqlserver
+    restart: on-failure
+
+  paymentservice:
+    build:
+      context: .
+      dockerfile: Dockerfiles/PaymentService.Dockerfile
+    container_name: ecommerce_paymentservice
+    ports:
+      - "5004:5004"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Container
+      - ASPNETCORE_URLS=http://+:5004
+    restart: on-failure
+
+  cartservice:
+    build:
+      context: .
+      dockerfile: Dockerfiles/CartService.Dockerfile
+    container_name: ecommerce_cartservice
+    ports:
+      - "5005:5005"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Container
+      - ASPNETCORE_URLS=http://+:5005
+    depends_on:
+      - redis
+    restart: on-failure
+
+  notificationservice:
+    build:
+      context: .
+      dockerfile: Dockerfiles/NotificationService.Dockerfile
+    container_name: ecommerce_notificationservice
+    ports:
+      - "5006:5006"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Container
+      - ASPNETCORE_URLS=http://+:5006
+    depends_on:
+      - rabbitmq
+    restart: on-failure
+
+  apigateway:
+    build:
+      context: .
+      dockerfile: Dockerfiles/ApiGateway.Dockerfile
+    container_name: ecommerce_apigateway
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Container
+      - ASPNETCORE_URLS=http://+:5000
+    depends_on:
+      - catalogservice
+      - userservice
+      - orderservice
+      - paymentservice
+      - cartservice
+      - notificationservice
+    restart: on-failure
+
+volumes:
+  mongodb_data:
+  sqlserver_data:
+  redis_data:
+  rabbitmq_data:
